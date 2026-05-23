@@ -1,64 +1,84 @@
-# Habit Tracker
+# Habit Tracker 🚀
 
-A MERN starter with a React + Vite frontend, Tailwind CSS styling, JWT authentication, and an Express API prepared for MongoDB through Mongoose.
+A full-stack MERN Habit Tracker web application built with React, Node.js, Express, and MongoDB Atlas.
 
-## Structure
+## ✨ Features
 
-```text
-backend/
-  src/
-    config/        # environment and database setup
-    controllers/   # route handlers
-    middleware/    # Express middleware
-    models/        # Mongoose models
-    routes/        # API routes
-    services/      # token and domain services
-frontend/
-  src/
-    components/    # reusable UI and layout
-    features/      # auth, dashboard, habits, and marketing features
-    services/      # API clients
-```
+- User Authentication (Signup/Login)
+- JWT-based authentication
+- MongoDB Atlas cloud database
+- Habit creation and tracking
+- Daily habit streaks
+- Responsive UI
+- REST API integration
+- Full-stack MERN architecture
 
-## Run locally
+## 🛠️ Tech Stack
 
-Install each app from the repository root:
+### Frontend
+- React
+- Vite
+- Tailwind CSS
+- Axios
+
+### Backend
+- Node.js
+- Express.js
+- MongoDB Atlas
+- Mongoose
+- JWT Authentication
+- bcrypt
+
+## 📂 Project Structure
+
+habit-tracker/
+├── frontend/
+├── backend/
+└── README.md
+
+## ⚙️ Installation
+
+### Clone Repository
 
 ```bash
-npm run install:all
+git clone https://github.com/Varshashoban/habit-tracker.git
 ```
 
-Start the backend:
+### Backend Setup
 
 ```bash
-npm run dev:backend
+cd backend
+npm install
+npm run dev
 ```
 
-Start the frontend in another terminal:
+### Frontend Setup
 
 ```bash
-npm run dev:frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-The frontend defaults to `http://localhost:5173`. The API defaults to `http://localhost:5000` and exposes `GET /api/v1/health`.
+## 🔐 Environment Variables
 
-Copy `backend/.env.example` to `backend/.env` before testing signup or login. Authentication needs `MONGODB_URI` and a long random `JWT_SECRET`.
+Create `.env` inside backend:
 
-## Authentication
+```env
+MONGO_URI=your_mongodb_uri
+JWT_SECRET=your_secret
+PORT=5000
+```
 
-The API exposes:
+## 🌍 Future Improvements
 
-- `POST /api/v1/auth/signup`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/logout`
-- `GET /api/v1/auth/me`
-- `GET /api/v1/dashboard` as a protected route example
-- `GET /api/v1/habits`
-- `POST /api/v1/habits`
-- `PATCH /api/v1/habits/:habitId`
-- `PATCH /api/v1/habits/:habitId/complete`
-- `DELETE /api/v1/habits/:habitId`
+- Analytics Dashboard
+- Habit Heatmaps
+- Notifications
+- Docker Deployment
+- AWS Deployment
+- AI Productivity Insights
 
-Passwords are hashed with bcrypt before they are stored. The API signs a JWT and sends it in an HttpOnly cookie, so the React app does not keep the token in `localStorage` or expose it to browser JavaScript. Frontend requests include credentials and protected React routes resolve the current user through `GET /api/v1/auth/me`.
+## 👩‍💻 Author
 
-Habit routes are protected by the same JWT middleware and are scoped to the authenticated user's `userId`. Streaks and recent completion rates are calculated from each habit's `completedDates`.
+Varsha Shoban
