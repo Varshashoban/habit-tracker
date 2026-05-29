@@ -38,6 +38,9 @@ export function AuthProvider({ children }) {
         setAuthState({ loading: false, user });
         return user;
       },
+      updateUser: (user) => {
+        setAuthState({ loading: false, user });
+      },
     }),
     [authState.loading, authState.user],
   );

@@ -35,7 +35,7 @@ function App() {
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route
-            path="/dashboard"
+            path="/dashboard/*"
             element={
               <Suspense fallback={<AuthLoading />}>
                 <DashboardPage />
