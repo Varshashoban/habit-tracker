@@ -8,6 +8,8 @@ const dashboardRoutes = require("./routes/dashboard.routes");
 const habitRoutes = require("./routes/habit.routes");
 const healthRoutes = require("./routes/health.routes");
 const productivityRoutes = require("./routes/productivity.routes");
+const reminderRoutes = require("./routes/reminder.routes");
+const reportRoutes = require("./routes/report.routes");
 const {
   notFoundHandler,
   errorHandler,
@@ -37,6 +39,8 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/habits", habitRoutes);
 app.use("/api/v1/productivity", productivityRoutes);
+app.use("/api/v1/reminders", reminderRoutes);
+app.use("/api/v1/reports", reportRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
