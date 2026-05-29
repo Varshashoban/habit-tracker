@@ -22,8 +22,36 @@ const habitSchema = new mongoose.Schema(
     },
     frequency: {
       type: String,
-      enum: ["daily", "weekly"],
+      enum: ["daily", "weekly", "specific_dates", "custom_weekdays"],
       default: "daily",
+    },
+    startDate: {
+      type: Date,
+      default: Date.now,
+    },
+    endDate: {
+      type: Date,
+      default: null,
+    },
+    scheduledDays: {
+      type: [Number],
+      default: [],
+      validate: {
+        validator(days) {
+          return days.every((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+        },
+        message: "Scheduled days must be valid weekday numbers.",
+      },
+    },
+    specificDates: {
+      type: [Date],
+      default: [],
+    },
+    targetCompletionsPerWeek: {
+      type: Number,
+      default: 7,
+      min: [1, "Target completions per week must be at least 1."],
+      max: [7, "Target completions per week must be 7 or fewer."],
     },
     completedDates: {
       type: [Date],

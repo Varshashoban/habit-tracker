@@ -24,6 +24,11 @@ const userSchema = new mongoose.Schema(
       minlength: [8, "Password must be at least 8 characters."],
       select: false,
     },
+    xp: {
+      type: Number,
+      default: 0,
+      min: [0, "XP cannot be negative."],
+    },
   },
   {
     timestamps: true,
@@ -47,6 +52,7 @@ userSchema.methods.toAuthJSON = function toAuthJSON() {
     id: this.id,
     name: this.name,
     email: this.email,
+    xp: this.xp || 0,
   };
 };
 
