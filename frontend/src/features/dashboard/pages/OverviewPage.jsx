@@ -10,6 +10,7 @@ import MetricCard from "../components/MetricCard";
 import {
   TodayReminderWidget,
   UpcomingRemindersPanel,
+  MissedRemindersPanel,
 } from "../components/ReminderWidgets";
 import WeeklyProgress from "../components/WeeklyProgress";
 import WelcomeHeader from "../components/WelcomeHeader";
@@ -17,6 +18,16 @@ import { getDashboardStats } from "../utils/habitAnalytics";
 
 function OverviewPage({ habits, loading, reminderData, user }) {
   const stats = getDashboardStats(habits);
+  
+  const todayReminders = reminderData?.stats?.todayReminders || [];
+  const now = new Date();
+  const currentHHMM = now.toTimeString().slice(0, 5);
+  const missedReminders = todayReminders.filter(
+    (reminder) =>
+      reminder.isActive &&
+      !reminder.completed &&
+      reminder.time.localeCompare(currentHHMM) <= 0
+  );
 
   return (
     <div className="space-y-6">
@@ -35,7 +46,7 @@ function OverviewPage({ habits, loading, reminderData, user }) {
 
       <section className="grid gap-6 xl:grid-cols-[1fr_24rem]">
         <WeeklyProgress habits={habits} />
-        <TodayReminderWidget reminders={reminderData?.stats?.todayReminders || []} />
+        <TodayReminderWidget reminders={todayReminders} />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_24rem]">
@@ -47,7 +58,10 @@ function OverviewPage({ habits, loading, reminderData, user }) {
 
       <section className="grid gap-6 xl:grid-cols-[1fr_24rem]">
         <CalendarHeatmap habits={habits} />
-        <LevelCard user={user} />
+        <div className="space-y-6">
+          <MissedRemindersPanel reminders={missedReminders} />
+          <LevelCard user={user} />
+        </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_24rem]">

@@ -18,6 +18,7 @@ import {
 import DashboardShell from "../components/DashboardShell";
 import AnalyticsPage from "./AnalyticsPage";
 import CalendarPage from "./CalendarPage";
+import ForecastPage from "./ForecastPage";
 import HabitsPage from "./HabitsPage";
 import OverviewPage from "./OverviewPage";
 import ProductivityCenterPage from "./ProductivityCenterPage";
@@ -46,6 +47,61 @@ function DashboardPage() {
       .catch((requestError) => setError(requestError.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!reminderData.reminders || reminderData.reminders.length === 0) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      const now = new Date();
+      const currentHHMM = now.toTimeString().slice(0, 5);
+      const todayKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+      const currentDay = now.getDay();
+
+      reminderData.reminders.forEach((reminder) => {
+        if (!reminder.isActive) return;
+        if (reminder.time !== currentHHMM) return;
+
+        let isDue = false;
+        if (reminder.frequency === "daily") {
+          isDue = true;
+        } else if (reminder.frequency === "weekly") {
+          if (reminder.scheduledDays && reminder.scheduledDays.length > 0) {
+            isDue = reminder.scheduledDays.includes(currentDay);
+          } else {
+            const createdDate = new Date(reminder.createdAt || now);
+            isDue = currentDay === createdDate.getDay();
+          }
+        } else if (reminder.frequency === "custom_weekdays") {
+          isDue = (reminder.scheduledDays || []).includes(currentDay);
+        }
+
+        if (isDue) {
+          const storageKey = `habitflow_notified_${reminder.id}_${todayKey}`;
+          if (!localStorage.getItem(storageKey)) {
+            const habit = habits.find((h) => h.id === reminder.habitId);
+            const isCompletedToday = habit && (habit.completedDates || []).some((d) => {
+              const dStr = typeof d === "string" ? d : new Date(d).toISOString().slice(0, 10);
+              return dStr.startsWith(todayKey);
+            });
+
+            if (!isCompletedToday) {
+              localStorage.setItem(storageKey, "true");
+              if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(reminder.habit?.title || "Habit Reminder", {
+                  body: reminder.message || "Time to keep the streak alive!",
+                  tag: reminder.id,
+                });
+              }
+            }
+          }
+        }
+      });
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [reminderData.reminders, habits]);
 
   async function refreshReminders() {
     const nextReminderData = await getReminders();
@@ -189,6 +245,7 @@ function DashboardPage() {
           />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="analytics" element={<AnalyticsPage habits={habits} />} />
+          <Route path="forecast" element={<ForecastPage />} />
           <Route path="settings" element={<SettingsPage user={user} />} />
           <Route path="*" element={<Navigate replace to="/dashboard" />} />
         </Routes>

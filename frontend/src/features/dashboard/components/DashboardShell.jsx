@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  TrendingUp,
 } from "lucide-react";
 import { NavLink } from "react-router";
 
@@ -17,10 +18,11 @@ const navigationItems = [
   { icon: CalendarCheck, label: "Today", to: "/dashboard/today" },
   { icon: CalendarDays, label: "Calendar", to: "/dashboard/calendar" },
   { icon: Brain, label: "Productivity", to: "/dashboard/productivity" },
-  { icon: Bell, label: "Reminders", to: "/dashboard/reminders" },
+  { icon: Bell, label: "Reminder Center", to: "/dashboard/reminders" },
   { icon: FileText, label: "Reports", to: "/dashboard/reports" },
   { icon: CheckSquare, label: "Habits", to: "/dashboard/habits" },
   { icon: BarChart3, label: "Analytics", to: "/dashboard/analytics" },
+  { icon: TrendingUp, label: "Forecast", to: "/dashboard/forecast" },
   { icon: Settings, label: "Settings", to: "/dashboard/settings" },
 ];
 
@@ -54,7 +56,7 @@ function DashboardShell({ children, onLogout, reminderCount = 0, user }) {
             >
               <Icon className="h-4 w-4" />
               <span className="flex-1">{label}</span>
-              {label === "Reminders" && reminderCount > 0 && (
+              {label === "Reminder Center" && reminderCount > 0 && (
                 <span className="rounded-full bg-teal-300 px-2 py-0.5 text-xs font-bold text-[#04100f]">
                   {reminderCount}
                 </span>
@@ -112,7 +114,7 @@ function DashboardShell({ children, onLogout, reminderCount = 0, user }) {
             >
               <Icon className="h-4 w-4" />
               {label}
-              {label === "Reminders" && reminderCount > 0 && (
+              {label === "Reminder Center" && reminderCount > 0 && (
                 <span className="rounded-full bg-[#04100f] px-1.5 py-0.5 text-xs font-bold text-teal-200">
                   {reminderCount}
                 </span>
