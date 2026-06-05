@@ -249,6 +249,10 @@ function csvEscape(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
+function rowsToCsv(rows) {
+  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+}
+
 function reportToCsv(report) {
   const rows = [
     ["Metric", "Value"],
@@ -272,7 +276,7 @@ function reportToCsv(report) {
     ]),
   ];
 
-  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+  return rowsToCsv(rows);
 }
 
 function historyToCsv(report) {
@@ -285,7 +289,138 @@ function historyToCsv(report) {
     ]),
   ];
 
-  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+  return rowsToCsv(rows);
+}
+
+function productivityAnalyticsToCsv(habits, userName) {
+  const safeHabits = Array.isArray(habits) ? habits : [];
+  const rankings = getRankings(safeHabits);
+  const totalCompletions = getCompletionCount(safeHabits);
+  const weeklyTrend = getDailyTrend(safeHabits, 7);
+  const monthlyTrend = getDailyTrend(safeHabits, 30);
+  const categoryPerformance = getCategoryPerformance(rankings);
+
+  const rows = [
+    ["HabitFlow - Productivity Analytics Export"],
+    [`Generated: ${new Date().toISOString()}`],
+    [`User: ${userName || "N/A"}`],
+    [],
+    ["=== SUMMARY ==="],
+    ["Metric", "Value"],
+    ["Total Habits", safeHabits.length],
+    ["Total Completions", totalCompletions],
+    ["Active Streaks", rankings.filter((h) => h.streak > 0).length],
+    [],
+    ["=== CATEGORY PERFORMANCE ==="],
+    ["Category", "Habits", "Completion Rate"],
+    ...categoryPerformance.map((cp) => [
+      cp.category,
+      cp.habits,
+      `${cp.completionRate}%`,
+    ]),
+    [],
+    ["=== WEEKLY TREND (Last 7 Days) ==="],
+    ["Date", "Day", "Completed", "Target", "Percentage"],
+    ...weeklyTrend.map((d) => [d.date, d.day, d.completed, d.target, `${d.percentage}%`]),
+    [],
+    ["=== MONTHLY TREND (Last 30 Days) ==="],
+    ["Date", "Day", "Completed", "Target", "Percentage"],
+    ...monthlyTrend.map((d) => [d.date, d.day, d.completed, d.target, `${d.percentage}%`]),
+    [],
+    ["=== HABIT RANKINGS ==="],
+    ["Rank", "Habit", "Category", "Completion Rate", "Completions", "Streak", "Missed"],
+    ...rankings.map((h, i) => [
+      i + 1,
+      h.title,
+      h.category,
+      `${h.completionRate}%`,
+      h.completions,
+      h.streak,
+      h.missed,
+    ]),
+  ];
+
+  return rowsToCsv(rows);
+}
+
+function reminderStatsToCsv(reminders, stats, suggestions, userName) {
+  const safeReminders = Array.isArray(reminders) ? reminders : [];
+  const safeStats = stats || {};
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
+
+  const rows = [
+    ["HabitFlow - Reminder Statistics Export"],
+    [`Generated: ${new Date().toISOString()}`],
+    [`User: ${userName || "N/A"}`],
+    [],
+    ["=== REMINDER PERFORMANCE ==="],
+    ["Metric", "Value"],
+    ["Reminders Sent", safeStats.remindersSent || 0],
+    ["Reminders Completed", safeStats.remindersCompleted || 0],
+    ["Completion After Reminder Rate", `${safeStats.completionAfterReminderRate || 0}%`],
+    ["Best Reminder Time", safeStats.bestReminderTime || "N/A"],
+    ["Pending Today", safeStats.pendingToday || 0],
+    [],
+    ["=== ALL REMINDERS ==="],
+    ["Habit", "Time", "Frequency", "Active", "Custom Message"],
+    ...safeReminders.map((r) => [
+      r.habit?.title || r.habitId || "Unknown",
+      r.time,
+      r.frequency,
+      r.isActive ? "Yes" : "No",
+      r.message || "",
+    ]),
+    [],
+    ["=== SMART SUGGESTIONS ==="],
+    ["Suggestion", "Recommended Time"],
+    ...safeSuggestions.map((s) => [s.message, s.time]),
+  ];
+
+  return rowsToCsv(rows);
+}
+
+function forecastMetricsToCsv(forecast, userName) {
+  const safeForecast = forecast || {};
+  const burnout = safeForecast.burnout || {};
+  const momentum = safeForecast.momentum || {};
+  const monthly = safeForecast.monthlyForecast || {};
+  const weekly = safeForecast.weeklyForecast || [];
+  const habits = safeForecast.habitsForecast || [];
+
+  const rows = [
+    ["HabitFlow - Forecast Metrics Export"],
+    [`Generated: ${new Date().toISOString()}`],
+    [`User: ${userName || "N/A"}`],
+    [],
+    ["=== BURNOUT RISK ==="],
+    ["Metric", "Value"],
+    ["Score", `${burnout.score || 0}%`],
+    ["Risk Level", burnout.riskLevel || "Unknown"],
+    ["Advice", burnout.advice || ""],
+    [],
+    ["=== PRODUCTIVITY MOMENTUM ==="],
+    ["Momentum", `${momentum.percentage || 0}%`],
+    ["Status", momentum.status || "Unknown"],
+    [],
+    ["=== MONTHLY CONSISTENCY FORECAST ==="],
+    ["Predicted Consistency", `${monthly.consistency || 0}%`],
+    [],
+    ["=== WEEKLY COMPLETION FORECAST (Next 7 Days) ==="],
+    ["Date", "Day", "Expected Completions", "Target Completions"],
+    ...weekly.map((d) => [d.date, d.day, d.expectedCompletions, d.targetCompletions]),
+    [],
+    ["=== HABIT SUCCESS FORECASTS ==="],
+    ["Habit", "Frequency", "Current Streak", "Predicted Streak", "Success Probability"],
+    ...habits.map((h) => [
+      h.title,
+      h.frequency,
+      h.currentStreak,
+      h.predictedStreak,
+      `${h.successProbability}%`,
+    ]),
+  ];
+
+  return rowsToCsv(rows);
 }
 
 function textToPdfBuffer(text) {
@@ -325,23 +460,40 @@ function textToPdfBuffer(text) {
   return Buffer.from(pdf);
 }
 
-function reportToPdf(report) {
+function reportToPdf(report, userName) {
+  const hr = "________________________________________";
+  const generated = new Date(report.generatedAt).toLocaleString();
   const text = [
-    report.title,
-    `Generated: ${new Date(report.generatedAt).toLocaleString()}`,
+    "HabitFlow - Advanced Report",
+    hr,
+    `Report: ${report.title}`,
+    `Generated: ${generated}`,
+    `User: ${userName || "N/A"}`,
+    "",
+    "=== SUMMARY ===",
     `Performance Score: ${report.performanceScore}/100`,
     `Total Habits: ${report.summary.totalHabitsCreated}`,
     `Total Completions: ${report.summary.totalCompletions}`,
-    `Current Streak: ${report.summary.currentStreak}`,
-    `Longest Streak: ${report.summary.longestStreak}`,
     `Completion: ${report.summary.completionPercentage}%`,
+    `Current Streak: ${report.summary.currentStreak} days`,
+    `Longest Streak: ${report.summary.longestStreak} days`,
+    `Best: ${report.summary.bestPerformingHabit}`,
+    `Missed: ${report.summary.mostMissedHabit}`,
     "",
-    "Insights:",
+    "=== ANALYTICS ===",
     ...(report.insights || []).map((insight) => `- ${insight}`),
     "",
-    "Habit Rankings:",
-    ...(report.rankings || []).map(
-      (habit, index) => `${index + 1}. ${habit.title}: ${habit.completionRate}%`,
+    "=== RECOMMENDATIONS ===",
+    report.performanceScore >= 70
+      ? "- Keep your streak momentum going!"
+      : "- Focus on building small daily streaks.",
+    report.summary.completionPercentage >= 50
+      ? "- Strong consistency. Push for 80%+ next."
+      : "- Set reminders to boost completions.",
+    "",
+    "=== RANKINGS ===",
+    ...(report.rankings || []).slice(0, 8).map(
+      (h, i) => `${i + 1}. ${h.title}: ${h.completionRate}%`,
     ),
   ].join("\n");
 
@@ -349,8 +501,13 @@ function reportToPdf(report) {
 }
 
 module.exports = {
+  forecastMetricsToCsv,
   generateReport,
   historyToCsv,
+  makeReportPayload,
+  productivityAnalyticsToCsv,
+  reminderStatsToCsv,
   reportToCsv,
   reportToPdf,
 };
+

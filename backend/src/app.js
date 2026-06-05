@@ -10,6 +10,8 @@ const healthRoutes = require("./routes/health.routes");
 const productivityRoutes = require("./routes/productivity.routes");
 const reminderRoutes = require("./routes/reminder.routes");
 const reportRoutes = require("./routes/report.routes");
+const forecastRoutes = require("./routes/forecast.routes");
+const settingsRoutes = require("./routes/settings.routes");
 const {
   notFoundHandler,
   errorHandler,
@@ -41,6 +43,8 @@ app.use("/api/v1/habits", habitRoutes);
 app.use("/api/v1/productivity", productivityRoutes);
 app.use("/api/v1/reminders", reminderRoutes);
 app.use("/api/v1/reports", reportRoutes);
+app.use("/api/v1/forecast", forecastRoutes);
+app.use("/api/v1/settings", settingsRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
