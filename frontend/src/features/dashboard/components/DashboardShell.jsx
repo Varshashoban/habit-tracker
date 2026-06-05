@@ -26,7 +26,9 @@ const navigationItems = [
   { icon: Settings, label: "Settings", to: "/dashboard/settings" },
 ];
 
-function DashboardShell({ children, onLogout, reminderCount = 0, user }) {
+function DashboardShell({ children, onLogout, reminderCount = 0, settings, user }) {
+  const timezone = settings?.account?.timezone || "Local timezone";
+
   return (
     <div className="min-h-screen bg-[#070a0e] text-white">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-white/10 bg-[#090d13]/95 px-5 py-6 shadow-[22px_0_90px_rgba(0,0,0,0.28)] lg:flex lg:flex-col">
@@ -68,6 +70,7 @@ function DashboardShell({ children, onLogout, reminderCount = 0, user }) {
         <div className="mt-auto rounded-lg border border-white/10 bg-white/[0.06] p-4">
           <p className="text-sm font-semibold text-white">{user.name}</p>
           <p className="mt-1 break-all text-xs text-slate-400">{user.email}</p>
+          <p className="mt-3 text-xs text-slate-500">{timezone}</p>
           <button
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-rose-200/25 bg-rose-300/10 px-3 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-300/15"
             onClick={onLogout}

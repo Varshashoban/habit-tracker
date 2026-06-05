@@ -299,32 +299,32 @@ function ReminderCenterPage({
       </section>
 
       {/* Stats Cards (4 Columns) */}
-      <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-        <article className="rounded-lg border border-white/10 bg-white/[0.07] p-5 hover:border-white/15 transition-all shadow-sm">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <article className="min-h-32 rounded-lg border border-white/10 bg-white/[0.07] p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/15">
           <Bell className="h-5 w-5 text-teal-200" />
           <p className="mt-3 text-sm text-slate-400">Reminders sent</p>
           <p className="mt-1 text-3xl font-semibold text-white">
             {stats.remindersSent || 0}
           </p>
         </article>
-        <article className="rounded-lg border border-white/10 bg-white/[0.07] p-5 hover:border-white/15 transition-all shadow-sm">
+        <article className="min-h-32 rounded-lg border border-white/10 bg-white/[0.07] p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/15">
           <CheckCircle2 className="h-5 w-5 text-emerald-200" />
           <p className="mt-3 text-sm text-slate-400">Completed after reminder</p>
           <p className="mt-1 text-3xl font-semibold text-white">
             {stats.remindersCompleted || 0}
           </p>
         </article>
-        <article className="rounded-lg border border-white/10 bg-white/[0.07] p-5 hover:border-white/15 transition-all shadow-sm">
+        <article className="min-h-32 rounded-lg border border-white/10 bg-white/[0.07] p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/15">
           <Clock3 className="h-5 w-5 text-sky-200" />
           <p className="mt-3 text-sm text-slate-400">Success Rate</p>
           <p className="mt-1 text-3xl font-semibold text-white">
             {stats.completionAfterReminderRate || 0}%
           </p>
         </article>
-        <article className="rounded-lg border border-white/10 bg-white/[0.07] p-5 hover:border-white/15 transition-all shadow-sm">
+        <article className="min-h-32 rounded-lg border border-white/10 bg-white/[0.07] p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/15">
           <Clock3 className="h-5 w-5 text-amber-200" />
           <p className="mt-3 text-sm text-slate-400">Best reminder time</p>
-          <p className="mt-1 text-3xl font-semibold text-white">
+          <p className="mt-1 break-words text-2xl font-semibold text-white">
             {stats.bestReminderTime || "N/A"}
           </p>
         </article>
@@ -368,7 +368,7 @@ function ReminderCenterPage({
                           )}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
                             reminder.isActive
@@ -416,7 +416,8 @@ function ReminderCenterPage({
               </h2>
             </div>
             <div className="mt-4 space-y-3">
-              {suggestions.map((suggestion) => {
+              {suggestions.length ? (
+                suggestions.map((suggestion) => {
                 const keyword = suggestion.message.toLowerCase().includes("gym") ? "gym" : "read";
                 const matchedHabit = habits.find((h) => (h.title || "").toLowerCase().includes(keyword)) || habits[0];
 
@@ -438,7 +439,12 @@ function ReminderCenterPage({
                     {suggestion.message}
                   </p>
                 );
-              })}
+              })
+              ) : (
+                <p className="rounded-md border border-dashed border-white/15 bg-black/15 px-4 py-3 text-sm text-slate-400">
+                  Suggestions will appear after HabitFlow has enough habit history.
+                </p>
+              )}
             </div>
           </section>
         </div>

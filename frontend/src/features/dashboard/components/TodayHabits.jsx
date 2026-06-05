@@ -33,8 +33,8 @@ function TodayHabits({ habits, onComplete, onDelete }) {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="text-right">
+            <div className="flex flex-wrap items-center gap-3 md:justify-end">
+              <div className="min-w-20 text-left md:text-right">
                 <p className="text-xs uppercase text-slate-500">Streak</p>
                 <p className="text-2xl font-semibold text-teal-200">
                   {habit.streak}

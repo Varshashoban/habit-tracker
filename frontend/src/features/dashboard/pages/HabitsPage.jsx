@@ -220,7 +220,8 @@ function HabitsPage({ habits, onComplete, onCreate, onDelete, onUpdate }) {
           </div>
 
           <div className="grid gap-4">
-            {filteredHabits.map((habit) => {
+            {filteredHabits.length ? (
+              filteredHabits.map((habit) => {
               const category = getHabitCategory(habit);
 
               return (
@@ -246,9 +247,9 @@ function HabitsPage({ habits, onComplete, onCreate, onDelete, onUpdate }) {
                         {habit.description || "No description yet."}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:justify-end">
                       <button
-                        className="rounded-md border border-teal-200/25 bg-teal-300/10 px-3 py-2 text-sm font-semibold text-teal-100"
+                        className="min-w-28 rounded-md border border-teal-200/25 bg-teal-300/10 px-3 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-300/15 disabled:cursor-not-allowed disabled:opacity-70"
                         disabled={habit.completedToday}
                         onClick={() => onComplete(habit.id)}
                         type="button"
@@ -256,14 +257,14 @@ function HabitsPage({ habits, onComplete, onCreate, onDelete, onUpdate }) {
                         {habit.completedToday ? "Done" : "Complete"}
                       </button>
                       <button
-                        className="rounded-md border border-white/15 bg-white/[0.07] p-2 text-white"
+                        className="rounded-md border border-white/15 bg-white/[0.07] p-2 text-white transition hover:bg-white/10"
                         onClick={() => setEditingId(habit.id)}
                         type="button"
                       >
                         <Edit3 className="h-4 w-4" />
                       </button>
                       <button
-                        className="rounded-md border border-rose-200/25 bg-rose-300/10 p-2 text-rose-100"
+                        className="rounded-md border border-rose-200/25 bg-rose-300/10 p-2 text-rose-100 transition hover:bg-rose-300/15"
                         onClick={() => onDelete(habit.id)}
                         type="button"
                       >
@@ -292,7 +293,18 @@ function HabitsPage({ habits, onComplete, onCreate, onDelete, onUpdate }) {
                   )}
                 </article>
               );
-            })}
+            })
+            ) : (
+              <section className="rounded-lg border border-dashed border-white/15 bg-white/[0.04] p-8 text-center">
+                <h2 className="text-xl font-semibold text-white">
+                  No habits match your filters
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-slate-400">
+                  Adjust the search, clear the category filter, or create a new
+                  habit from the form beside this list.
+                </p>
+              </section>
+            )}
           </div>
         </div>
 

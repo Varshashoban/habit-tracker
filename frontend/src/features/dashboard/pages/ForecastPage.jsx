@@ -13,6 +13,7 @@ import {
 
 import { getForecast } from "../../../services/api/forecast";
 import ChartCard from "../components/ChartCard";
+import LoadingSkeleton from "../components/LoadingSkeleton";
 
 const tooltipStyle = {
   background: "#0c1118",
@@ -41,9 +42,19 @@ function ForecastPage() {
 
   if (loading) {
     return (
-      <div className="flex h-96 flex-col items-center justify-center space-y-4">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-t-teal-300 border-white/10" />
-        <p className="text-slate-400">Running predictive models on MongoDB logs...</p>
+      <div className="space-y-6">
+        <section className="rounded-lg border border-white/10 bg-white/[0.07] p-6">
+          <p className="text-sm font-semibold uppercase text-teal-200">
+            AI Forecast Engine
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold text-white">
+            Predictive intelligence
+          </h1>
+          <p className="mt-3 text-sm text-slate-400">
+            Running predictive models on MongoDB logs...
+          </p>
+        </section>
+        <LoadingSkeleton />
       </div>
     );
   }
@@ -172,29 +183,27 @@ function ForecastPage() {
           description="Expected daily completions for the next 7 days modeled on individual habit probability."
           title="7-Day expected completions"
         >
-          <div className="h-80 w-full mt-4">
-            <ResponsiveContainer height="100%" width="100%">
-              <BarChart data={weeklyForecast}>
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="day" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "#ffffff10" }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar
-                  dataKey="targetCompletions"
-                  fill="rgba(255, 255, 255, 0.12)"
-                  name="Scheduled Habits"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="expectedCompletions"
-                  fill="#5eead4"
-                  name="Predicted Completions"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ResponsiveContainer height="100%" width="100%">
+            <BarChart data={weeklyForecast}>
+              <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+              <XAxis dataKey="day" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+              <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "#ffffff10" }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar
+                dataKey="targetCompletions"
+                fill="rgba(255, 255, 255, 0.12)"
+                name="Scheduled Habits"
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="expectedCompletions"
+                fill="#5eead4"
+                name="Predicted Completions"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </ChartCard>
       </section>
 
@@ -202,7 +211,7 @@ function ForecastPage() {
       <section className="rounded-lg border border-white/10 bg-white/[0.07] p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-white mb-4">Habit Success Forecasts</h2>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-300">
+          <table className="w-full min-w-[760px] text-left text-sm text-slate-300">
             <thead className="border-b border-white/10 text-xs uppercase text-slate-400">
               <tr>
                 <th className="py-3 px-4">Habit</th>

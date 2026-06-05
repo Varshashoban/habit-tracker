@@ -36,7 +36,7 @@ function DashboardPage() {
     stats: {},
     suggestions: [],
   });
-  const { logout, updateUser, user } = useAuth();
+  const { logout, settings, updateSettings, updateUser, user } = useAuth();
 
   useEffect(() => {
     Promise.all([getHabits(), getReminders()])
@@ -60,6 +60,7 @@ function DashboardPage() {
       const currentDay = now.getDay();
 
       reminderData.reminders.forEach((reminder) => {
+        if (!settings?.notifications?.browser || !settings?.notifications?.reminders) return;
         if (!reminder.isActive) return;
         if (reminder.time !== currentHHMM) return;
 
@@ -101,7 +102,7 @@ function DashboardPage() {
     }, 15000);
 
     return () => clearInterval(intervalId);
-  }, [reminderData.reminders, habits]);
+  }, [reminderData.reminders, habits, settings]);
 
   async function refreshReminders() {
     const nextReminderData = await getReminders();
@@ -182,6 +183,7 @@ function DashboardPage() {
     <DashboardShell
       onLogout={logout}
       reminderCount={reminderData.stats?.pendingToday || 0}
+      settings={settings}
       user={user}
     >
       <div className="mx-auto w-full max-w-7xl">
@@ -199,6 +201,7 @@ function DashboardPage() {
                 habits={habits}
                 loading={loading}
                 reminderData={reminderData}
+                settings={settings}
                 user={user}
               />
             }
@@ -246,7 +249,17 @@ function DashboardPage() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="analytics" element={<AnalyticsPage habits={habits} />} />
           <Route path="forecast" element={<ForecastPage />} />
-          <Route path="settings" element={<SettingsPage user={user} />} />
+          <Route
+            path="settings"
+            element={
+              <SettingsPage
+                settings={settings}
+                updateSettings={updateSettings}
+                updateUser={updateUser}
+                user={user}
+              />
+            }
+          />
           <Route path="*" element={<Navigate replace to="/dashboard" />} />
         </Routes>
       </div>

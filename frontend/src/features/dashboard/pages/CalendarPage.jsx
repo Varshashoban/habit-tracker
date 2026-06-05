@@ -256,63 +256,67 @@ function CalendarPage({ habits, onUpdate }) {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase text-slate-500">
-            {weekdayOptions.map((day) => (
-              <span key={day.value}>{day.label}</span>
-            ))}
-          </div>
+          <div className="mt-5 overflow-x-auto pb-2">
+            <div className="min-w-[44rem]">
+              <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase text-slate-500">
+                {weekdayOptions.map((day) => (
+                  <span key={day.value}>{day.label}</span>
+                ))}
+              </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-7">
-            {monthDays.map((day) => {
-              const dayHabits = getScheduledHabitsForDate(habits, day.date);
-              const isSelected = day.dateKey === selectedDateKey;
+              <div className="mt-3 grid grid-cols-7 gap-2">
+                {monthDays.map((day) => {
+                  const dayHabits = getScheduledHabitsForDate(habits, day.date);
+                  const isSelected = day.dateKey === selectedDateKey;
 
-              return (
-                <button
-                  className={`min-h-28 rounded-lg border p-3 text-left transition hover:-translate-y-0.5 hover:border-teal-200/30 ${
-                    isSelected
-                      ? "border-teal-200/40 bg-teal-300/10"
-                      : "border-white/10 bg-black/15"
-                  } ${day.inCurrentMonth ? "" : "opacity-45"}`}
-                  key={day.dateKey}
-                  onClick={() => setSelectedDateKey(day.dateKey)}
-                  type="button"
-                >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold ${
-                        day.isToday
-                          ? "bg-teal-300 text-[#04100f]"
-                          : "text-slate-200"
-                      }`}
+                  return (
+                    <button
+                      className={`min-h-28 rounded-lg border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-teal-200/30 ${
+                        isSelected
+                          ? "border-teal-200/40 bg-teal-300/10"
+                          : "border-white/10 bg-black/15"
+                      } ${day.inCurrentMonth ? "" : "opacity-45"}`}
+                      key={day.dateKey}
+                      onClick={() => setSelectedDateKey(day.dateKey)}
+                      type="button"
                     >
-                      {day.dayNumber}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {dayHabits.length || ""}
-                    </span>
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {dayHabits.slice(0, 3).map((habit) => (
-                      <div
-                        className="flex items-center gap-2 rounded-md bg-white/[0.06] px-2 py-1"
-                        key={habit.id}
-                      >
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${statusStyles[habit.calendarStatus].dot}`} />
-                        <span className="truncate text-xs text-slate-300">
-                          {habit.title}
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold ${
+                            day.isToday
+                              ? "bg-teal-300 text-[#04100f]"
+                              : "text-slate-200"
+                          }`}
+                        >
+                          {day.dayNumber}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {dayHabits.length || ""}
                         </span>
                       </div>
-                    ))}
-                    {dayHabits.length > 3 && (
-                      <p className="text-xs text-slate-500">
-                        +{dayHabits.length - 3} more
-                      </p>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+                      <div className="mt-3 space-y-1.5">
+                        {dayHabits.slice(0, 3).map((habit) => (
+                          <div
+                            className="flex items-center gap-2 rounded-md bg-white/[0.06] px-2 py-1"
+                            key={habit.id}
+                          >
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${statusStyles[habit.calendarStatus].dot}`} />
+                            <span className="truncate text-xs text-slate-300">
+                              {habit.title}
+                            </span>
+                          </div>
+                        ))}
+                        {dayHabits.length > 3 && (
+                          <p className="text-xs text-slate-500">
+                            +{dayHabits.length - 3} more
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 

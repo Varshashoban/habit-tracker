@@ -16,7 +16,7 @@ import WeeklyProgress from "../components/WeeklyProgress";
 import WelcomeHeader from "../components/WelcomeHeader";
 import { getDashboardStats } from "../utils/habitAnalytics";
 
-function OverviewPage({ habits, loading, reminderData, user }) {
+function OverviewPage({ habits, loading, reminderData, settings, user }) {
   const stats = getDashboardStats(habits);
   
   const todayReminders = reminderData?.stats?.todayReminders || [];
@@ -31,7 +31,11 @@ function OverviewPage({ habits, loading, reminderData, user }) {
 
   return (
     <div className="space-y-6">
-      <WelcomeHeader loading={loading} userName={user.name} />
+      <WelcomeHeader
+        loading={loading}
+        settings={settings}
+        userName={user.name}
+      />
 
       {loading ? (
         <LoadingSkeleton />
