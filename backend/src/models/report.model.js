@@ -30,8 +30,12 @@ const reportSchema = new mongoose.Schema(
       default: [],
     },
     insights: {
-      type: [String],
-      default: [],
+      type: Object,
+      default: {},
+    },
+    range: {
+      type: Object,
+      default: {},
     },
     achievementSummary: {
       type: Object,

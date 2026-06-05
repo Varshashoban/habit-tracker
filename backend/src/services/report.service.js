@@ -1,17 +1,25 @@
-const Report = require("../models/report.model");
-const { getCompletionRate, getStreak, toDateKey } = require("./habit.service");
+const mongoose = require("mongoose");
 
-const dayFormatter = new Intl.DateTimeFormat("en", { weekday: "short" });
+const Habit = require("../models/habit.model");
+const Report = require("../models/report.model");
+const { getStreak, toDateKey } = require("./habit.service");
+const AppError = require("../utils/appError");
 
 const categories = ["Health", "Study", "Fitness", "Reading", "Personal Growth", "Custom"];
+const dayFormatter = new Intl.DateTimeFormat("en", { weekday: "short" });
+const monthFormatter = new Intl.DateTimeFormat("en", { month: "short", year: "numeric" });
 
 function finite(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
 
+function clamp(value, min = 0, max = 100) {
+  return Math.min(max, Math.max(min, finite(value)));
+}
+
 function pct(value) {
-  return Math.round(Math.min(100, Math.max(0, finite(value))));
+  return Math.round(clamp(value));
 }
 
 function divide(numerator, denominator) {
@@ -28,8 +36,72 @@ function addDays(date, days) {
   return nextDate;
 }
 
+function parseDate(value, fieldName) {
+  const date = new Date(value);
+
+  if (!value || Number.isNaN(date.getTime())) {
+    throw new AppError(400, `${fieldName} is invalid.`);
+  }
+
+  return startOfDay(date);
+}
+
+function getReportRange(filters = {}) {
+  const preset = filters.range || filters.preset || "last30";
+  const today = startOfDay();
+
+  if (preset === "custom") {
+    const startDate = parseDate(filters.startDate, "Start date");
+    const endDate = parseDate(filters.endDate, "End date");
+
+    if (endDate < startDate) {
+      throw new AppError(400, "End date must be after start date.");
+    }
+
+    return {
+      endDate,
+      label: "Custom Range",
+      preset,
+      startDate,
+    };
+  }
+
+  const presets = {
+    last30: ["Last 30 Days", 29],
+    last7: ["Last 7 Days", 6],
+    last90: ["Last 90 Days", 89],
+    today: ["Today", 0],
+  };
+  const selectedPreset = presets[preset] ? preset : "last30";
+  const [label, daysBack] = presets[selectedPreset];
+
+  return {
+    endDate: today,
+    label,
+    preset: selectedPreset,
+    startDate: addDays(today, -daysBack),
+  };
+}
+
+function enumerateDays(startDate, endDate) {
+  const days = [];
+  let cursor = startOfDay(startDate);
+  const end = startOfDay(endDate);
+
+  while (cursor <= end) {
+    days.push(new Date(cursor));
+    cursor = addDays(cursor, 1);
+  }
+
+  return days;
+}
+
+function getCompletedDates(habit) {
+  return Array.isArray(habit.completedDates) ? habit.completedDates : [];
+}
+
 function getHabitCategory(habit) {
-  const text = `${habit.title} ${habit.description}`.toLowerCase();
+  const text = `${habit.title || ""} ${habit.description || ""}`.toLowerCase();
 
   if (/read|book|chapter|journal/.test(text)) return "Reading";
   if (/study|learn|course|practice|code/.test(text)) return "Study";
@@ -40,54 +112,170 @@ function getHabitCategory(habit) {
   return "Custom";
 }
 
-function getCompletedDates(habit) {
-  return Array.isArray(habit.completedDates) ? habit.completedDates : [];
+function getWeekday(date) {
+  return startOfDay(date).getUTCDay();
+}
+
+function isWithinHabitBounds(habit, date) {
+  const dateKey = toDateKey(date);
+  const startDateKey = toDateKey(habit.startDate || habit.createdAt || date);
+  const endDateKey = habit.endDate ? toDateKey(habit.endDate) : null;
+
+  return dateKey >= startDateKey && (!endDateKey || dateKey <= endDateKey);
+}
+
+function isHabitScheduledOnDate(habit, date) {
+  if (!isWithinHabitBounds(habit, date)) {
+    return false;
+  }
+
+  const weekday = getWeekday(date);
+  const scheduledDays = Array.isArray(habit.scheduledDays)
+    ? habit.scheduledDays
+    : [];
+
+  if (habit.frequency === "specific_dates") {
+    return (habit.specificDates || []).some(
+      (specificDate) => toDateKey(specificDate) === toDateKey(date),
+    );
+  }
+
+  if (habit.frequency === "custom_weekdays") {
+    return scheduledDays.includes(weekday);
+  }
+
+  if (habit.frequency === "weekly") {
+    return scheduledDays.length
+      ? scheduledDays.includes(weekday)
+      : weekday === getWeekday(habit.startDate || habit.createdAt || new Date());
+  }
+
+  return true;
 }
 
 function isCompletedOnDate(habit, date) {
   const dateKey = toDateKey(date);
-  return getCompletedDates(habit).some((completedDate) => toDateKey(completedDate) === dateKey);
+  return getCompletedDates(habit).some(
+    (completedDate) => toDateKey(completedDate) === dateKey,
+  );
 }
 
-function getCompletionCount(habits) {
-  return habits.reduce((total, habit) => total + getCompletedDates(habit).length, 0);
+function getCompletionsInRange(habit, startDate, endDate) {
+  return getCompletedDates(habit).filter((completedDate) => {
+    const date = startOfDay(completedDate);
+    return date >= startDate && date <= endDate;
+  });
 }
 
-function getDailyTrend(habits, days) {
-  const today = startOfDay();
+function getLongestStreak(completedDates, frequency) {
+  if (!completedDates.length) {
+    return 0;
+  }
 
-  return Array.from({ length: days }, (_, index) => {
-    const date = addDays(today, index - (days - 1));
+  const periodDays = frequency === "weekly" ? 7 : 1;
+  const sortedKeys = [...new Set(completedDates.map((date) => toDateKey(date)))].sort();
+  let longest = 1;
+  let current = 1;
+
+  for (let index = 1; index < sortedKeys.length; index += 1) {
+    const previousDate = startOfDay(sortedKeys[index - 1]);
+    const nextDate = startOfDay(sortedKeys[index]);
+    const dayGap = Math.round((nextDate - previousDate) / 86400000);
+
+    if (dayGap <= periodDays) {
+      current += 1;
+    } else {
+      current = 1;
+    }
+
+    longest = Math.max(longest, current);
+  }
+
+  return longest;
+}
+
+function getStatus(completionRate) {
+  if (completionRate >= 80) return "Excellent";
+  if (completionRate >= 50) return "Steady";
+  if (completionRate > 0) return "Needs attention";
+  return "No activity";
+}
+
+function getHabitRows(habits, days, range) {
+  return habits
+    .map((habit) => {
+      const scheduled = days.filter((date) => isHabitScheduledOnDate(habit, date)).length;
+      const completions = getCompletionsInRange(habit, range.startDate, range.endDate);
+      const completionRate = scheduled ? pct(divide(completions.length, scheduled) * 100) : 0;
+      const currentStreak = getStreak(getCompletedDates(habit), habit.frequency);
+      const longestStreak = getLongestStreak(getCompletedDates(habit), habit.frequency);
+
+      return {
+        category: getHabitCategory(habit),
+        completionRate,
+        currentStreak,
+        id: String(habit._id || habit.id),
+        longestStreak,
+        missed: Math.max(0, scheduled - completions.length),
+        scheduled,
+        status: getStatus(completionRate),
+        title: habit.title,
+        totalCompletions: completions.length,
+      };
+    })
+    .sort((left, right) => {
+      if (right.completionRate !== left.completionRate) {
+        return right.completionRate - left.completionRate;
+      }
+
+      return right.totalCompletions - left.totalCompletions;
+    });
+}
+
+function getDailySeries(habits, days) {
+  return days.map((date) => {
+    const scheduled = habits.filter((habit) => isHabitScheduledOnDate(habit, date)).length;
     const completed = habits.filter((habit) => isCompletedOnDate(habit, date)).length;
 
     return {
       completed,
       date: toDateKey(date),
       day: dayFormatter.format(date),
-      percentage: habits.length ? pct(divide(completed, habits.length) * 100) : 0,
-      target: habits.length,
+      percentage: scheduled ? pct(divide(completed, scheduled) * 100) : 0,
+      scheduled,
     };
   });
 }
 
-function getRankings(habits) {
-  return habits
-    .map((habit) => ({
-      category: getHabitCategory(habit),
-      completionRate: getCompletionRate(getCompletedDates(habit), habit.frequency),
-      completions: getCompletedDates(habit).length,
-      id: habit.id,
-      missed: Math.max(0, 30 - getCompletedDates(habit).length),
-      streak: getStreak(getCompletedDates(habit), habit.frequency),
-      title: habit.title,
-    }))
-    .sort((left, right) => {
-      if (right.completionRate !== left.completionRate) {
-        return right.completionRate - left.completionRate;
-      }
+function getWeekStart(date) {
+  const weekStart = startOfDay(date);
+  const day = weekStart.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  weekStart.setUTCDate(weekStart.getUTCDate() - daysFromMonday);
+  return weekStart;
+}
 
-      return right.streak - left.streak;
-    });
+function getGroupedTrend(dailySeries, keyFactory, labelFactory) {
+  const groups = new Map();
+
+  dailySeries.forEach((day) => {
+    const date = startOfDay(day.date);
+    const key = keyFactory(date);
+    const current = groups.get(key) || {
+      completed: 0,
+      label: labelFactory(date),
+      scheduled: 0,
+    };
+
+    current.completed += day.completed;
+    current.scheduled += day.scheduled;
+    groups.set(key, current);
+  });
+
+  return [...groups.values()].map((group) => ({
+    ...group,
+    percentage: group.scheduled ? pct(divide(group.completed, group.scheduled) * 100) : 0,
+  }));
 }
 
 function getCategoryPerformance(rankings) {
@@ -105,6 +293,48 @@ function getCategoryPerformance(rankings) {
       };
     })
     .filter((item) => item.habits > 0);
+}
+
+function getMostImprovedHabit(habits, days) {
+  if (days.length < 2) {
+    return null;
+  }
+
+  const midpoint = Math.floor(days.length / 2);
+  const firstHalf = days.slice(0, midpoint);
+  const secondHalf = days.slice(midpoint);
+
+  return habits
+    .map((habit) => {
+      const rateForDays = (selectedDays) => {
+        const scheduled = selectedDays.filter((date) => isHabitScheduledOnDate(habit, date)).length;
+        const completed = selectedDays.filter((date) => isCompletedOnDate(habit, date)).length;
+        return scheduled ? pct(divide(completed, scheduled) * 100) : 0;
+      };
+      const improvement = rateForDays(secondHalf) - rateForDays(firstHalf);
+
+      return {
+        improvement,
+        title: habit.title,
+      };
+    })
+    .sort((left, right) => right.improvement - left.improvement)[0];
+}
+
+function getProductivitySummary({ completionRate, currentStreak, totalHabits, weeklyCompletion }) {
+  if (!totalHabits) {
+    return "Create your first habit to start building reportable momentum.";
+  }
+
+  if (completionRate >= 80) {
+    return `Excellent momentum: ${completionRate}% completion with a ${currentStreak}-day leading streak.`;
+  }
+
+  if (weeklyCompletion >= 60) {
+    return `Your recent week is stable at ${weeklyCompletion}%. Focus on the lowest-performing habit next.`;
+  }
+
+  return "Your report shows room for recovery. Smaller goals and reminder tuning can lift consistency quickly.";
 }
 
 function getAchievements(habits, totalCompletions, longestStreak) {
@@ -133,116 +363,146 @@ function getAchievements(habits, totalCompletions, longestStreak) {
   };
 }
 
-function getInsights({ categoryPerformance, monthlyTrend, rankings, weeklyTrend }) {
-  const insights = [];
-  const bestHabit = rankings[0];
-  const bestCategory = [...categoryPerformance].sort(
-    (left, right) => right.completionRate - left.completionRate,
-  )[0];
-  const weekend = monthlyTrend.filter((day) => {
-    const weekday = new Date(`${day.date}T00:00:00.000Z`).getUTCDay();
-    return weekday === 0 || weekday === 6;
-  });
-  const weekdays = monthlyTrend.filter((day) => !weekend.includes(day));
-  const weekendAverage = weekend.length
-    ? divide(weekend.reduce((total, day) => total + day.percentage, 0), weekend.length)
-    : 0;
-  const weekdayAverage = weekdays.length
-    ? divide(weekdays.reduce((total, day) => total + day.percentage, 0), weekdays.length)
-    : 0;
-  const recentWeek = weeklyTrend.reduce((total, day) => total + day.percentage, 0);
-  const previousWeek = monthlyTrend.slice(-14, -7).reduce((total, day) => total + day.percentage, 0);
-  const improvement = pct(divide(recentWeek - previousWeek, Math.max(previousWeek, 1)) * 100);
-
-  if (bestHabit) {
-    insights.push(`${bestHabit.title} leads your report at ${bestHabit.completionRate}% completion.`);
-  }
-
-  if (bestCategory) {
-    insights.push(`${bestCategory.category} habits show highest consistency at ${bestCategory.completionRate}%.`);
-  }
-
-  insights.push(
-    weekendAverage >= weekdayAverage
-      ? "You perform best on weekends."
-      : "You perform best on weekdays.",
-  );
-
-  if (improvement > 0) {
-    insights.push(`Your completion trend improved by ${improvement}% this month.`);
-  }
-
-  return insights;
+async function getReportHabits(userId) {
+  return Habit.aggregate([
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(userId),
+      },
+    },
+    {
+      $project: {
+        completedDates: 1,
+        createdAt: 1,
+        description: 1,
+        endDate: 1,
+        frequency: 1,
+        scheduledDays: 1,
+        specificDates: 1,
+        startDate: 1,
+        targetCompletionsPerWeek: 1,
+        title: 1,
+        totalLifetimeCompletions: { $size: { $ifNull: ["$completedDates", []] } },
+      },
+    },
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
+  ]);
 }
 
-function makeReportPayload(userId, habits) {
-  const safeHabits = Array.isArray(habits) ? habits : [];
-  const rankings = getRankings(safeHabits);
-  const totalCompletions = getCompletionCount(safeHabits);
-  const currentStreak = rankings.reduce((best, habit) => Math.max(best, habit.streak), 0);
-  const longestStreak = currentStreak;
-  const bestPerformingHabit = rankings[0] || null;
-  const mostMissedHabit = [...rankings].sort((left, right) => right.missed - left.missed)[0] || null;
-  const completionPercentage = safeHabits.length
-    ? pct(divide(rankings.reduce((total, habit) => total + habit.completionRate, 0), safeHabits.length))
+async function buildReportPayload(userId, filters = {}) {
+  const range = getReportRange(filters);
+  const habits = await getReportHabits(userId);
+  const days = enumerateDays(range.startDate, range.endDate);
+  const rankings = getHabitRows(habits, days, range);
+  const dailyTrend = getDailySeries(habits, days);
+  const totalScheduled = dailyTrend.reduce((total, day) => total + day.scheduled, 0);
+  const totalCompletions = rankings.reduce((total, habit) => total + habit.totalCompletions, 0);
+  const completionRate = totalScheduled ? pct(divide(totalCompletions, totalScheduled) * 100) : 0;
+  const activeHabits = rankings.filter((habit) => habit.scheduled > 0).length;
+  const habitSuccessRate = activeHabits
+    ? pct(divide(rankings.filter((habit) => habit.completionRate >= 70).length, activeHabits) * 100)
     : 0;
-  const weeklyTrend = getDailyTrend(safeHabits, 7);
-  const monthlyTrend = getDailyTrend(safeHabits, 30);
-  const categoryPerformance = getCategoryPerformance(rankings);
-  const missedHabits = rankings.reduce((total, habit) => total + habit.missed, 0);
-  const consistency = monthlyTrend.length
-    ? pct(divide(monthlyTrend.reduce((total, day) => total + day.percentage, 0), monthlyTrend.length))
-    : 0;
-  const performanceScore = pct(
-    completionPercentage * 0.45 +
-      Math.min(100, currentStreak * 10) * 0.2 +
-      consistency * 0.25 +
-      Math.max(0, 100 - missedHabits) * 0.1,
+  const weeklyTrend = getGroupedTrend(
+    dailyTrend,
+    (date) => toDateKey(getWeekStart(date)),
+    (date) => `Week of ${toDateKey(getWeekStart(date))}`,
   );
-  const achievementSummary = getAchievements(safeHabits, totalCompletions, longestStreak);
-  const charts = {
-    categoryPerformance,
-    habitComparison: rankings.map((habit) => ({
-      completionRate: habit.completionRate,
-      completions: habit.completions,
-      title: habit.title.length > 16 ? `${habit.title.slice(0, 16)}...` : habit.title,
-    })),
-    monthlyTrend,
-    weeklyTrend,
-  };
+  const monthlyTrend = getGroupedTrend(
+    dailyTrend,
+    (date) => toDateKey(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))),
+    (date) => monthFormatter.format(date),
+  );
+  const weeklyCompletion = weeklyTrend.length ? weeklyTrend[weeklyTrend.length - 1].percentage : 0;
+  const monthlyCompletion = monthlyTrend.length ? monthlyTrend[monthlyTrend.length - 1].percentage : 0;
+  const currentStreak = rankings.reduce((best, habit) => Math.max(best, habit.currentStreak), 0);
+  const longestStreak = rankings.reduce((best, habit) => Math.max(best, habit.longestStreak), 0);
+  const bestPerformingHabit = rankings[0] || null;
+  const worstPerformingHabit = [...rankings].reverse()[0] || null;
+  const mostMissedHabit = [...rankings].sort((left, right) => right.missed - left.missed)[0] || null;
+  const mostImprovedHabit = getMostImprovedHabit(habits, days);
+  const productivitySummary = getProductivitySummary({
+    completionRate,
+    currentStreak,
+    totalHabits: habits.length,
+    weeklyCompletion,
+  });
+  const categoryPerformance = getCategoryPerformance(rankings);
+  const performanceScore = pct(
+    completionRate * 0.45 +
+      Math.min(100, currentStreak * 10) * 0.2 +
+      habitSuccessRate * 0.2 +
+      Math.max(0, 100 - rankings.reduce((total, habit) => total + habit.missed, 0)) * 0.15,
+  );
 
   return {
-    achievementSummary,
-    charts,
+    achievementSummary: getAchievements(habits, totalCompletions, longestStreak),
+    charts: {
+      categoryPerformance,
+      completionHeatmap: dailyTrend,
+      habitComparison: rankings.map((habit) => ({
+        completionRate: habit.completionRate,
+        completions: habit.totalCompletions,
+        title: habit.title.length > 16 ? `${habit.title.slice(0, 16)}...` : habit.title,
+      })),
+      monthlyTrend,
+      productivityTrend: dailyTrend.map((day) => ({
+        date: day.date,
+        productivityScore: day.percentage,
+      })),
+      weeklyTrend,
+    },
     generatedAt: new Date(),
-    habitHistory: safeHabits.flatMap((habit) =>
-      getCompletedDates(habit).map((date) => ({
+    habitHistory: habits.flatMap((habit) =>
+      getCompletionsInRange(habit, range.startDate, range.endDate).map((date) => ({
         completedDate: toDateKey(date),
         frequency: habit.frequency,
-        habitId: habit.id,
+        habitId: String(habit._id),
         title: habit.title,
       })),
     ),
-    insights: getInsights({ categoryPerformance, monthlyTrend, rankings, weeklyTrend }),
+    insights: {
+      bestPerformingHabit,
+      mostImprovedHabit:
+        mostImprovedHabit && mostImprovedHabit.improvement > 0
+          ? mostImprovedHabit
+          : null,
+      mostMissedHabit,
+      productivitySummary,
+      worstPerformingHabit,
+    },
     performanceScore,
     rankings,
-    summary: {
-      bestPerformingHabit: bestPerformingHabit?.title || "No habits yet",
-      completionPercentage,
-      currentStreak,
-      longestStreak,
-      mostMissedHabit: mostMissedHabit?.title || "No missed habits yet",
-      totalCompletions,
-      totalHabitsCreated: safeHabits.length,
+    range: {
+      endDate: toDateKey(range.endDate),
+      label: range.label,
+      preset: range.preset,
+      startDate: toDateKey(range.startDate),
     },
-    title: "HabitFlow Advanced Report",
+    summary: {
+      completionRate,
+      currentStreak,
+      habitSuccessRate,
+      longestStreak,
+      monthlyCompletion,
+      totalCompletions,
+      totalHabits: habits.length,
+      totalHabitsCreated: habits.length,
+      totalScheduled,
+      weeklyCompletion,
+    },
+    title: "HabitFlow Analytics Report",
     type: "advanced",
     userId,
   };
 }
 
-async function generateReport(userId, habits) {
-  return Report.create(makeReportPayload(userId, habits));
+async function generateReport(userId, filters = {}) {
+  const payload = await buildReportPayload(userId, filters);
+  return Report.create(payload);
 }
 
 function csvEscape(value) {
@@ -255,24 +515,29 @@ function rowsToCsv(rows) {
 
 function reportToCsv(report) {
   const rows = [
+    ["HabitFlow Analytics Report"],
+    ["Range", report.range?.label || ""],
+    ["Start Date", report.range?.startDate || ""],
+    ["End Date", report.range?.endDate || ""],
+    [],
     ["Metric", "Value"],
-    ["Total habits created", report.summary.totalHabitsCreated],
-    ["Total completions", report.summary.totalCompletions],
+    ["Total habits", report.summary.totalHabits],
+    ["Completion rate", `${report.summary.completionRate}%`],
     ["Current streak", report.summary.currentStreak],
     ["Longest streak", report.summary.longestStreak],
-    ["Best performing habit", report.summary.bestPerformingHabit],
-    ["Most missed habit", report.summary.mostMissedHabit],
-    ["Completion percentage", `${report.summary.completionPercentage}%`],
-    ["Performance score", report.performanceScore],
+    ["Weekly completion", `${report.summary.weeklyCompletion}%`],
+    ["Monthly completion", `${report.summary.monthlyCompletion}%`],
+    ["Habit success rate", `${report.summary.habitSuccessRate}%`],
+    ["Performance score", `${report.performanceScore}/100`],
     [],
-    ["Habit", "Category", "Completion Rate", "Completions", "Streak", "Missed"],
+    ["Habit", "Total Completions", "Completion %", "Current Streak", "Longest Streak", "Status"],
     ...(report.rankings || []).map((habit) => [
       habit.title,
-      habit.category,
+      habit.totalCompletions,
       `${habit.completionRate}%`,
-      habit.completions,
-      habit.streak,
-      habit.missed,
+      habit.currentStreak,
+      habit.longestStreak,
+      habit.status,
     ]),
   ];
 
@@ -292,52 +557,20 @@ function historyToCsv(report) {
   return rowsToCsv(rows);
 }
 
+async function reportToJson(userId, filters = {}) {
+  const report = await buildReportPayload(userId, filters);
+  return JSON.stringify(report, null, 2);
+}
+
 function productivityAnalyticsToCsv(habits, userName) {
   const safeHabits = Array.isArray(habits) ? habits : [];
-  const rankings = getRankings(safeHabits);
-  const totalCompletions = getCompletionCount(safeHabits);
-  const weeklyTrend = getDailyTrend(safeHabits, 7);
-  const monthlyTrend = getDailyTrend(safeHabits, 30);
-  const categoryPerformance = getCategoryPerformance(rankings);
-
   const rows = [
     ["HabitFlow - Productivity Analytics Export"],
     [`Generated: ${new Date().toISOString()}`],
     [`User: ${userName || "N/A"}`],
     [],
-    ["=== SUMMARY ==="],
-    ["Metric", "Value"],
-    ["Total Habits", safeHabits.length],
-    ["Total Completions", totalCompletions],
-    ["Active Streaks", rankings.filter((h) => h.streak > 0).length],
-    [],
-    ["=== CATEGORY PERFORMANCE ==="],
-    ["Category", "Habits", "Completion Rate"],
-    ...categoryPerformance.map((cp) => [
-      cp.category,
-      cp.habits,
-      `${cp.completionRate}%`,
-    ]),
-    [],
-    ["=== WEEKLY TREND (Last 7 Days) ==="],
-    ["Date", "Day", "Completed", "Target", "Percentage"],
-    ...weeklyTrend.map((d) => [d.date, d.day, d.completed, d.target, `${d.percentage}%`]),
-    [],
-    ["=== MONTHLY TREND (Last 30 Days) ==="],
-    ["Date", "Day", "Completed", "Target", "Percentage"],
-    ...monthlyTrend.map((d) => [d.date, d.day, d.completed, d.target, `${d.percentage}%`]),
-    [],
-    ["=== HABIT RANKINGS ==="],
-    ["Rank", "Habit", "Category", "Completion Rate", "Completions", "Streak", "Missed"],
-    ...rankings.map((h, i) => [
-      i + 1,
-      h.title,
-      h.category,
-      `${h.completionRate}%`,
-      h.completions,
-      h.streak,
-      h.missed,
-    ]),
+    ["Habit", "Lifetime Completions"],
+    ...safeHabits.map((habit) => [habit.title, getCompletedDates(habit).length]),
   ];
 
   return rowsToCsv(rows);
@@ -353,7 +586,6 @@ function reminderStatsToCsv(reminders, stats, suggestions, userName) {
     [`Generated: ${new Date().toISOString()}`],
     [`User: ${userName || "N/A"}`],
     [],
-    ["=== REMINDER PERFORMANCE ==="],
     ["Metric", "Value"],
     ["Reminders Sent", safeStats.remindersSent || 0],
     ["Reminders Completed", safeStats.remindersCompleted || 0],
@@ -361,19 +593,17 @@ function reminderStatsToCsv(reminders, stats, suggestions, userName) {
     ["Best Reminder Time", safeStats.bestReminderTime || "N/A"],
     ["Pending Today", safeStats.pendingToday || 0],
     [],
-    ["=== ALL REMINDERS ==="],
     ["Habit", "Time", "Frequency", "Active", "Custom Message"],
-    ...safeReminders.map((r) => [
-      r.habit?.title || r.habitId || "Unknown",
-      r.time,
-      r.frequency,
-      r.isActive ? "Yes" : "No",
-      r.message || "",
+    ...safeReminders.map((reminder) => [
+      reminder.habit?.title || reminder.habitId || "Unknown",
+      reminder.time,
+      reminder.frequency,
+      reminder.isActive ? "Yes" : "No",
+      reminder.message || "",
     ]),
     [],
-    ["=== SMART SUGGESTIONS ==="],
     ["Suggestion", "Recommended Time"],
-    ...safeSuggestions.map((s) => [s.message, s.time]),
+    ...safeSuggestions.map((suggestion) => [suggestion.message, suggestion.time]),
   ];
 
   return rowsToCsv(rows);
@@ -392,31 +622,22 @@ function forecastMetricsToCsv(forecast, userName) {
     [`Generated: ${new Date().toISOString()}`],
     [`User: ${userName || "N/A"}`],
     [],
-    ["=== BURNOUT RISK ==="],
-    ["Metric", "Value"],
     ["Score", `${burnout.score || 0}%`],
     ["Risk Level", burnout.riskLevel || "Unknown"],
     ["Advice", burnout.advice || ""],
-    [],
-    ["=== PRODUCTIVITY MOMENTUM ==="],
     ["Momentum", `${momentum.percentage || 0}%`],
-    ["Status", momentum.status || "Unknown"],
+    ["Predicted Monthly Consistency", `${monthly.consistency || 0}%`],
     [],
-    ["=== MONTHLY CONSISTENCY FORECAST ==="],
-    ["Predicted Consistency", `${monthly.consistency || 0}%`],
-    [],
-    ["=== WEEKLY COMPLETION FORECAST (Next 7 Days) ==="],
     ["Date", "Day", "Expected Completions", "Target Completions"],
-    ...weekly.map((d) => [d.date, d.day, d.expectedCompletions, d.targetCompletions]),
+    ...weekly.map((day) => [day.date, day.day, day.expectedCompletions, day.targetCompletions]),
     [],
-    ["=== HABIT SUCCESS FORECASTS ==="],
     ["Habit", "Frequency", "Current Streak", "Predicted Streak", "Success Probability"],
-    ...habits.map((h) => [
-      h.title,
-      h.frequency,
-      h.currentStreak,
-      h.predictedStreak,
-      `${h.successProbability}%`,
+    ...habits.map((habit) => [
+      habit.title,
+      habit.frequency,
+      habit.currentStreak,
+      habit.predictedStreak,
+      `${habit.successProbability}%`,
     ]),
   ];
 
@@ -424,13 +645,13 @@ function forecastMetricsToCsv(forecast, userName) {
 }
 
 function textToPdfBuffer(text) {
-  const lines = text.split("\n").slice(0, 42);
+  const lines = text.split("\n").slice(0, 48);
   const content = [
     "BT",
-    "/F1 14 Tf",
+    "/F1 13 Tf",
     "50 760 Td",
     ...lines.flatMap((line, index) => [
-      index === 0 ? "" : "0 -18 Td",
+      index === 0 ? "" : "0 -16 Td",
       `(${line.replace(/[()\\]/g, "\\$&")}) Tj`,
     ]),
     "ET",
@@ -461,39 +682,35 @@ function textToPdfBuffer(text) {
 }
 
 function reportToPdf(report, userName) {
-  const hr = "________________________________________";
   const generated = new Date(report.generatedAt).toLocaleString();
   const text = [
-    "HabitFlow - Advanced Report",
-    hr,
-    `Report: ${report.title}`,
+    "HabitFlow - Analytics Report",
+    "________________________________________",
     `Generated: ${generated}`,
     `User: ${userName || "N/A"}`,
+    `Range: ${report.range?.label || "Report range"}`,
+    `${report.range?.startDate || ""} to ${report.range?.endDate || ""}`,
     "",
-    "=== SUMMARY ===",
-    `Performance Score: ${report.performanceScore}/100`,
-    `Total Habits: ${report.summary.totalHabitsCreated}`,
-    `Total Completions: ${report.summary.totalCompletions}`,
-    `Completion: ${report.summary.completionPercentage}%`,
-    `Current Streak: ${report.summary.currentStreak} days`,
-    `Longest Streak: ${report.summary.longestStreak} days`,
-    `Best: ${report.summary.bestPerformingHabit}`,
-    `Missed: ${report.summary.mostMissedHabit}`,
+    "REPORT DASHBOARD",
+    `Total habits: ${report.summary.totalHabits}`,
+    `Completion rate: ${report.summary.completionRate}%`,
+    `Current streak: ${report.summary.currentStreak} days`,
+    `Longest streak: ${report.summary.longestStreak} days`,
+    `Weekly completion: ${report.summary.weeklyCompletion}%`,
+    `Monthly completion: ${report.summary.monthlyCompletion}%`,
+    `Habit success rate: ${report.summary.habitSuccessRate}%`,
     "",
-    "=== ANALYTICS ===",
-    ...(report.insights || []).map((insight) => `- ${insight}`),
+    "INSIGHTS",
+    `Best habit: ${report.insights?.bestPerformingHabit?.title || "N/A"}`,
+    `Worst habit: ${report.insights?.worstPerformingHabit?.title || "N/A"}`,
+    `Most improved: ${report.insights?.mostImprovedHabit?.title || "N/A"}`,
+    `Most missed: ${report.insights?.mostMissedHabit?.title || "N/A"}`,
+    report.insights?.productivitySummary || "",
     "",
-    "=== RECOMMENDATIONS ===",
-    report.performanceScore >= 70
-      ? "- Keep your streak momentum going!"
-      : "- Focus on building small daily streaks.",
-    report.summary.completionPercentage >= 50
-      ? "- Strong consistency. Push for 80%+ next."
-      : "- Set reminders to boost completions.",
-    "",
-    "=== RANKINGS ===",
-    ...(report.rankings || []).slice(0, 8).map(
-      (h, i) => `${i + 1}. ${h.title}: ${h.completionRate}%`,
+    "HABIT PERFORMANCE",
+    ...(report.rankings || []).slice(0, 12).map(
+      (habit) =>
+        `${habit.title}: ${habit.completionRate}% | ${habit.totalCompletions} completions | ${habit.status}`,
     ),
   ].join("\n");
 
@@ -501,13 +718,14 @@ function reportToPdf(report, userName) {
 }
 
 module.exports = {
+  buildReportPayload,
   forecastMetricsToCsv,
   generateReport,
+  getReportRange,
   historyToCsv,
-  makeReportPayload,
   productivityAnalyticsToCsv,
   reminderStatsToCsv,
   reportToCsv,
+  reportToJson,
   reportToPdf,
 };
-

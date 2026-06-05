@@ -9,12 +9,14 @@ const {
   serializeReminder,
 } = require("../services/reminder.service");
 const {
+  buildReportPayload,
   forecastMetricsToCsv,
   generateReport,
   historyToCsv,
   productivityAnalyticsToCsv,
   reminderStatsToCsv,
   reportToCsv,
+  reportToJson,
   reportToPdf,
 } = require("../services/report.service");
 const AppError = require("../utils/appError");
@@ -30,10 +32,15 @@ async function getUserReport(userId, reportId) {
 }
 
 async function createReport(req, res) {
-  const habits = await Habit.find({ userId: req.user.id }).sort({ createdAt: -1 });
-  const report = await generateReport(req.user.id, habits);
+  const report = await generateReport(req.user.id, req.body);
 
   res.status(201).json({ report });
+}
+
+async function getCurrentReport(req, res) {
+  const report = await buildReportPayload(req.user.id, req.query);
+
+  res.json({ report });
 }
 
 async function getReportHistory(req, res) {
@@ -63,6 +70,29 @@ async function exportReport(req, res) {
 
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", `attachment; filename="habitflow-report-${report.id}.csv"`);
+  return res.send(reportToCsv(report));
+}
+
+async function exportCurrentReport(req, res) {
+  const format = req.query.format || "csv";
+  const userName = req.user.name || "HabitFlow User";
+
+  if (format === "json") {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="habitflow-report-${Date.now()}.json"`);
+    return res.send(await reportToJson(req.user.id, req.query));
+  }
+
+  const report = await buildReportPayload(req.user.id, req.query);
+
+  if (format === "pdf") {
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="habitflow-report-${Date.now()}.pdf"`);
+    return res.send(reportToPdf(report, userName));
+  }
+
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="habitflow-report-${Date.now()}.csv"`);
   return res.send(reportToCsv(report));
 }
 
@@ -109,9 +139,11 @@ async function exportForecastMetrics(req, res) {
 
 module.exports = {
   createReport,
+  exportCurrentReport,
   exportForecastMetrics,
   exportProductivityAnalytics,
   exportReminderStats,
   exportReport,
+  getCurrentReport,
   getReportHistory,
 };
