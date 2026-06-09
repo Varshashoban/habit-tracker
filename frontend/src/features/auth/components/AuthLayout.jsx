@@ -12,14 +12,14 @@ function AuthLayout({ children, description, title }) {
         </Link>
         <div className="max-w-xl pb-8">
           <p className="text-sm font-semibold uppercase text-teal-200">
-            Secure habit tracking
+            SMART STUDENT PRODUCTIVITY
           </p>
           <h1 className="mt-5 text-5xl font-semibold leading-tight text-white">
-            Keep your progress private and your routine visible.
+            Stay consistent. Study smarter. Build better habits.
           </h1>
           <p className="mt-5 text-lg leading-8 text-slate-300">
-            Your session is handled with an HttpOnly authentication cookie while
-            the dashboard stays guarded behind the API and the React router.
+             Organize your routines with habit tracking, productivity insights,
+             reminders, and progress reports designed for everyday growth.
           </p>
         </div>
       </section>
