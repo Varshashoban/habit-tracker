@@ -42,7 +42,7 @@ function DashboardShell({ children, onLogout, reminderCount = 0, settings, user 
           </div>
         </div>
 
-        <nav className="mt-10 space-y-2">
+        <nav className="mt-10 flex-1 space-y-2 overflow-y-auto pr-2">
           {navigationItems.map(({ icon: Icon, label, to }) => (
             <NavLink
               className={({ isActive }) =>
