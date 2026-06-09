@@ -25,8 +25,8 @@ function getAuthCookieOptions() {
     httpOnly: true,
     maxAge: getCookieMaxAge(),
     path: "/",
-    sameSite: "lax",
-    secure: nodeEnv === "production",
+    sameSite: "none",
+    secure: true,
   };
 }
 
@@ -38,8 +38,8 @@ function clearAuthCookie(res) {
   res.clearCookie(authCookieName, {
     httpOnly: true,
     path: "/",
-    sameSite: "lax",
-    secure: nodeEnv === "production",
+    sameSite: "none",
+    secure: true,
   });
 }
 
