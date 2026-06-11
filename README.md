@@ -6,7 +6,7 @@ A full-stack MERN Habit Tracker web application built with React, Node.js, Expre
 
 - User Authentication (Signup/Login)
 - JWT-based authentication
-- MongoDB Atlas cloud databasegit commit -m "Updated README"
+- MongoDB Atlas cloud database
 - Habit creation and tracking
 - Daily habit streaks
 - Responsive UI
